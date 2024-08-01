@@ -116,5 +116,5 @@ string ExecuteFfprobe(string[] cmdArgs)
 string? LocateExecutable(string filename)
 {
     return Environment.GetEnvironmentVariable("PATH")?.Split(';').Where(x => !string.IsNullOrWhiteSpace(x)).SelectMany(Directory.GetFiles)
-        .Select(x => x.Replace(".exe", "")).FirstOrDefault(x => x == filename);
+        .FirstOrDefault(x => Path.GetFileName(x).Replace(".exe", "").ToLower() == filename.ToLower());
 }
