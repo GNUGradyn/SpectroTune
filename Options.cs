@@ -10,10 +10,10 @@ class Options
     [Option('f', "file", HelpText = "One or more files to fix")]
     public IEnumerable<string> Files { get; set; }
     
-    [Option("ffmpeg", Default = "ffmpeg", HelpText = "Path to ffmpeg. Consults global PATH by default")]
+    [Option("ffmpeg", Default = "", HelpText = "Path to ffmpeg. Consults global PATH by default")] // Default is blank because properties have to be compile-time constants. PATH will be consulted at runtime to populate this if empty
     public string FfmpegPath { get; set; }
     
-    [Option("ffprobe", Default = "ffprobe", HelpText = "Path to ffprobe. Consults global PATH by default")]
+    [Option("ffprobe", Default = "", HelpText = "Path to ffprobe. Consults global PATH by default")] // Default is blank because properties have to be compile-time constants. PATH will be consulted at runtime to populate this if empty
     public string FfprobePath { get; set; }
     
     [Option('t', "threads", HelpText = "Sets the maximum degree of parallelism. Defaults to the number of threads on your system", Default = 0)] // Defaults to 0 since properties have to be compile-time constants. 0 will be interpreted as Environment.ProcessorCount

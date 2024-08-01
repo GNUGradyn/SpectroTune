@@ -2,7 +2,14 @@
 
 public class AudioStream
 {
-    public int ChannelCount { get; set; }
+    public AudioStream(int index, double channelCount, string language)
+    {
+        ChannelCount = channelCount;
+        Language = language;
+        Index = index;
+    }
+
+    public double ChannelCount { get; set; }
     public string Language { get; set; }
-    public 
+    public int Index { get; set; }
 }
