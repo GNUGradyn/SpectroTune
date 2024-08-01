@@ -1,5 +1,6 @@
 ﻿// See https://aka.ms/new-console-template for more information
 
+using System.Diagnostics;
 using CommandLine;
 using SpectroTune;
 
@@ -24,7 +25,22 @@ Parallel.ForEach(files, new ParallelOptions() {MaxDegreeOfParallelism = maxDegre
     
 });
 
+int[] GetAudioStreams(string filePath)
+{
+    var rawResult = ExecuteCommand(interpretedParams.Value.FfprobePath,
+        ["-v", "error", "-select_streams", "a", "-show_entries", "stream=index,channels:stream_tags=language", "-of", "csv=p=0", $"\"{filePath}\""]);
+}
+
 string ExecuteCommand(string path, string[] cmdArgs)
 {
-    
+    Process p = new Process();
+    p.StartInfo.UseShellExecute = false;
+    p.StartInfo.RedirectStandardOutput = true;
+    p.StartInfo.FileName = path;
+    p.StartInfo.Arguments = string.Join(' ', cmdArgs);
+    p.StartInfo.CreateNoWindow = true;
+    p.Start();
+    string output = p.StandardOutput.ReadToEnd();
+    p.WaitForExit();
+    return output;
 }
