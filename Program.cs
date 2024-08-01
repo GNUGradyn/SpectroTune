@@ -15,6 +15,15 @@ if (ffmpegLocation == null || !File.Exists(ffmpegLocation))
     Console.WriteLine("Failed to locate FFMPEG: No path provided and ffmpeg is not in your path, or the provided path does not exist");
 }
 
+var ffprobeLocation = string.IsNullOrWhiteSpace(interpretedParams.Value.FfprobePath)
+    ? LocateExecutable("ffprobe")
+    : interpretedParams.Value.FfprobePath;
+
+if (ffprobeLocation == null || !File.Exists(ffprobeLocation))
+{
+    Console.WriteLine("Failed to locate FFMPEG: No path provided and ffmpeg is not in your path, or the provided path does not exist");
+}
+
 Console.WriteLine("Collecting files, please wait");
 
 var files = interpretedParams.Value.Files.Concat(
@@ -67,12 +76,12 @@ string ExecuteCommand(string path, string[] cmdArgs)
 
 string ExecuteFfmpeg(string[] cmdArgs)
 {
-    ExecuteCommand(, cmdArgs)
+    return ExecuteCommand(ffmpegLocation, cmdArgs);
 }
 
 string ExecuteFfprobe(string[] cmdArgs)
 {
-    
+    return ExecuteCommand(ffprobeLocation, cmdArgs);
 }
 
 string? LocateExecutable(string filename)
