@@ -1,7 +1,10 @@
 ﻿// See https://aka.ms/new-console-template for more information
 
+using System.Collections.ObjectModel;
+using System.Collections.Specialized;
 using System.Diagnostics;
 using CommandLine;
+using Spectre.Console;
 using SpectroTune;
 
 var interpretedParams = Parser.Default.ParseArguments<Options>(args);
@@ -39,10 +42,36 @@ var maxDegreeParallelism = interpretedParams.Value.Threads == 0 ? Environment.Pr
 
 Console.WriteLine($"Processing {files.Count()} files on {maxDegreeParallelism} threads");
 
+ObservableCollection<Worker> workers = [];
+workers.CollectionChanged += WorkerCollectionUpdated;
+
+void WorkerCollectionUpdated(object sender, NotifyCollectionChangedEventArgs args)
+{
+    RenderConsole();
+}
+
+void RenderConsole()
+{
+    var table = new Table();
+    table.AddColumn("File");
+    table.AddColumn("Status");
+    foreach (var worker in workers)
+    {
+        table.AddRow(Path.GetFileName(worker.File), worker.State.ToString());
+    }
+    AnsiConsole.Write(table);
+}
 
 Parallel.ForEach(files, new ParallelOptions() {MaxDegreeOfParallelism = maxDegreeParallelism}, file =>
 {
-    var streams = GetAudioStreams(file);
+    var worker = new Worker(file, 0, [], State.StreamAnalysis);
+    worker.PropertyChanged += (_, _) => RenderConsole();
+    workers.Add(worker);
+    //var streams = GetAudioStreams(file);
+    Thread.Sleep(100);
+    worker.State = State.StreamConversion;
+    Thread.Sleep(100);
+    workers.Remove(worker);
 });
 
 AudioStream[] GetAudioStreams(string filePath)
@@ -86,6 +115,6 @@ string ExecuteFfprobe(string[] cmdArgs)
 
 string? LocateExecutable(string filename)
 {
-    return Environment.GetEnvironmentVariable("PATH")?.Split(';').SelectMany(x => Directory.GetFiles(x))
+    return Environment.GetEnvironmentVariable("PATH")?.Split(';').Where(x => !string.IsNullOrWhiteSpace(x)).SelectMany(Directory.GetFiles)
         .Select(x => x.Replace(".exe", "")).FirstOrDefault(x => x == filename);
 }
