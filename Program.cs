@@ -42,7 +42,7 @@ Console.WriteLine($"Processing {files.Count()} files on {maxDegreeParallelism} t
 
 Parallel.ForEach(files, new ParallelOptions() {MaxDegreeOfParallelism = maxDegreeParallelism}, file =>
 {
-    GetAudioStreams(Path.Join());
+    var streams = GetAudioStreams(file);
 });
 
 AudioStream[] GetAudioStreams(string filePath)
