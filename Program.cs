@@ -1,10 +1,13 @@
 ﻿// See https://aka.ms/new-console-template for more information
 
+using System.Collections.Concurrent;
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
+using System.ComponentModel;
 using System.Diagnostics;
 using CommandLine;
 using Spectre.Console;
+using Spectre.Console.Rendering;
 using SpectroTune;
 
 var interpretedParams = Parser.Default.ParseArguments<Options>(args);
@@ -30,7 +33,7 @@ if (ffprobeLocation == null || !File.Exists(ffprobeLocation))
 Console.WriteLine("Collecting files, please wait");
 
 var files = interpretedParams.Value.Files.Concat(
-    interpretedParams.Value.Directories.SelectMany(x => Directory.GetFiles(x, "*.*", SearchOption.AllDirectories)));
+    interpretedParams.Value.Directories.SelectMany(x => Directory.GetFiles(x, "*.*", SearchOption.AllDirectories))).ToList();
 
 if (!files.Any())
 {
@@ -40,38 +43,42 @@ if (!files.Any())
 
 var maxDegreeParallelism = interpretedParams.Value.Threads == 0 ? Environment.ProcessorCount : interpretedParams.Value.Threads;
 
-Console.WriteLine($"Processing {files.Count()} files on {maxDegreeParallelism} threads");
+Console.WriteLine($"Processing {files.Count} files on {maxDegreeParallelism} threads");
 
-ObservableCollection<Worker> workers = [];
-workers.CollectionChanged += WorkerCollectionUpdated;
+var table = new Table();
+table.AddColumn("File");
+table.AddColumn("Status");
+AnsiConsole.Write(table);
 
-void WorkerCollectionUpdated(object sender, NotifyCollectionChangedEventArgs args)
+// This is due to a VERY annoying limitation in Spectre.Console that they have yet to fix.
+// We cannot find the index of a TableRow in table.Rows. 
+// We can't do it by extending IReadOnlyList (and therefore TableRowCollection) because TableRow does not implement iComparable nor does it maintain its reference
+// We also cannot extend TableRow to hold an identifier or be otherwise comparable because it is sealed.
+// Therfore we have to maintain a second list that is only used to keep track of the indexes in the table.
+// We lock both collections with 1 lock to avoid race conditions
+var workerListLock = new object();
+var workerPool = new List<string>();
+
+AnsiConsole.Live(table).Start(consoleCtx =>
 {
-    RenderConsole();
-}
-
-void RenderConsole()
-{
-    var table = new Table();
-    table.AddColumn("File");
-    table.AddColumn("Status");
-    foreach (var worker in workers)
+    Parallel.ForEach(files, new ParallelOptions() { MaxDegreeOfParallelism = maxDegreeParallelism }, file =>
     {
-        table.AddRow(Path.GetFileName(worker.File), worker.State.ToString());
-    }
-    AnsiConsole.Write(table);
-}
-
-Parallel.ForEach(files, new ParallelOptions() {MaxDegreeOfParallelism = maxDegreeParallelism}, file =>
-{
-    var worker = new Worker(file, 0, [], State.StreamAnalysis);
-    worker.PropertyChanged += (_, _) => RenderConsole();
-    workers.Add(worker);
-    //var streams = GetAudioStreams(file);
-    Thread.Sleep(100);
-    worker.State = State.StreamConversion;
-    Thread.Sleep(100);
-    workers.Remove(worker);
+        var row = new TableRow(new Markup[] { new(Markup.Escape(Path.GetFileName(file))), new("Stream Analysis") });
+        lock (workerListLock)
+        {
+            table.Rows.Add(row);
+            workerPool.Add(file);
+        }
+        consoleCtx.Refresh();
+        //var streams = GetAudioStreams(file);
+        Thread.Sleep(100);
+        lock (workerListLock)
+        {
+            var index = workerPool.IndexOf(file);
+            table.Rows.RemoveAt(index);
+            workerPool.RemoveAt(index);
+        }
+    });
 });
 
 AudioStream[] GetAudioStreams(string filePath)
