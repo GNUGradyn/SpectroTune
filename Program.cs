@@ -86,6 +86,7 @@ AudioStream[] GetAudioStreams(string filePath)
         ["-v", "error", "-select_streams", "a", "-show_entries", "stream=index,channels:stream_tags=language", "-of", "csv=p=0", $"\"{filePath}\""]);
     return rawResult
         .Split(["\r\n", "\n", "\r"], StringSplitOptions.None)
+        .Where(x => !string.IsNullOrWhiteSpace(x))
         .Select(x =>
         {
             if (x.Split(",").Length == 2)
