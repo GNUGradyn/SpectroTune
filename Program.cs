@@ -48,7 +48,6 @@ Console.WriteLine($"Processing {files.Count} files on {maxDegreeParallelism} thr
 var table = new Table();
 table.AddColumn("File");
 table.AddColumn("Status");
-AnsiConsole.Write(table);
 
 // This is due to a VERY annoying limitation in Spectre.Console that they have yet to fix.
 // We cannot find the index of a TableRow in table.Rows. 
