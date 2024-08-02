@@ -62,7 +62,7 @@ AnsiConsole.Live(table).Start(consoleCtx =>
 {
     Parallel.ForEach(files, new ParallelOptions() { MaxDegreeOfParallelism = maxDegreeParallelism }, file =>
     {
-        var row = new TableRow(new Markup[] { new(Markup.Escape(Path.GetFileName(file))), new("Stream Analysis") });
+        var row = new TableRow(new Markup[] { new(Markup.Escape(Path.GetFileName(file))), new("Initial File Analysis") });
         lock (workerListLock)
         {
             table.Rows.Add(row);
@@ -77,6 +77,7 @@ AnsiConsole.Live(table).Start(consoleCtx =>
             table.Rows.RemoveAt(index);
             workerPool.RemoveAt(index);
         }
+        consoleCtx.Refresh();
     });
 });
 
