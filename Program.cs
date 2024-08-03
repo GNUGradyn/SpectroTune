@@ -19,6 +19,7 @@ var ffmpegLocation = string.IsNullOrWhiteSpace(interpretedParams.Value.FfmpegPat
 if (string.IsNullOrWhiteSpace(ffmpegLocation) || !File.Exists(ffmpegLocation))
 {
     Console.WriteLine("Failed to locate FFMPEG: No path provided and ffmpeg is not in your path, or the provided path does not exist");
+    return;
 }
 
 var ffprobeLocation = string.IsNullOrWhiteSpace(interpretedParams.Value.FfprobePath)
@@ -28,6 +29,7 @@ var ffprobeLocation = string.IsNullOrWhiteSpace(interpretedParams.Value.FfprobeP
 if (string.IsNullOrWhiteSpace(ffprobeLocation) || !File.Exists(ffprobeLocation))
 {
     Console.WriteLine("Failed to locate FFMPEG: No path provided and ffmpeg is not in your path, or the provided path does not exist");
+    return;
 }
 
 Console.WriteLine("Collecting files, please wait");
@@ -48,6 +50,7 @@ Console.WriteLine($"Processing {files.Count} files on {maxDegreeParallelism} thr
 var table = new Table();
 table.AddColumn("File");
 table.AddColumn("Status");
+table.AddColumn("Stream Index");
 
 // This is due to a VERY annoying limitation in Spectre.Console that they have yet to fix.
 // We cannot find the index of a TableRow in table.Rows. 
@@ -62,7 +65,7 @@ AnsiConsole.Live(table).Start(consoleCtx =>
 {
     Parallel.ForEach(files, new ParallelOptions() { MaxDegreeOfParallelism = maxDegreeParallelism }, file =>
     {
-        var row = new TableRow(new Markup[] { new(Markup.Escape(Path.GetFileName(file))), new("Initial File Analysis") });
+        var row = new TableRow(new Markup[] { new(Markup.Escape(Path.GetFileName(file))), new("Initial File Analysis"), new("N/A") });
         lock (workerListLock)
         {
             table.Rows.Add(row);
@@ -70,6 +73,16 @@ AnsiConsole.Live(table).Start(consoleCtx =>
         }
         consoleCtx.Refresh();
         var streams = GetAudioStreams(file);
+        foreach (var audioStream in streams)
+        {
+            table.UpdateCell(workerPool.IndexOf(file), 1, "Stream Analysis");
+            table.UpdateCell(workerPool.IndexOf(file), 2, audioStream.Index.ToString());
+            consoleCtx.Refresh();
+            GetDecibelPeakOfStream(file, audioStream.Index, progress => 
+            {
+                
+            });
+        }
         lock (workerListLock)
         {
             var index = workerPool.IndexOf(file);
@@ -79,6 +92,17 @@ AnsiConsole.Live(table).Start(consoleCtx =>
         consoleCtx.Refresh();
     });
 });
+
+double GetDecibelPeakOfStream(string file, int streamIndex, Action<double> progress = null)
+{
+    var result = ExecuteFfmpeg([
+        "-i", $"\"{file}\"", $"-filter:a:{streamIndex.ToString()}", "volumedetect", "-f", "null", "/dev/null", "-threads", "1"
+    ], (sender, eventArgs) =>
+    {
+        
+    });
+    return 0;
+}
 
 AudioStream[] GetAudioStreams(string filePath)
 {
@@ -99,33 +123,15 @@ AudioStream[] GetAudioStreams(string filePath)
         .ToArray();
 }
 
-string ExecuteCommand(string path, string[] cmdArgs)
+
+string ExecuteFfmpeg(string[] cmdArgs, DataReceivedEventHandler? dataReceived = null)
 {
-    Process p = new Process();
-    p.StartInfo.UseShellExecute = false;
-    p.StartInfo.RedirectStandardOutput = true;
-    p.StartInfo.RedirectStandardError = true;
-    p.StartInfo.FileName = path;
-    p.StartInfo.Arguments = string.Join(' ', cmdArgs);
-    p.StartInfo.CreateNoWindow = true;
-    p.Start();
-    string output = p.StandardOutput.ReadToEnd();
-    p.WaitForExit();
-    if (p.ExitCode != 0)
-    {
-        throw new Exception(p.StandardError.ReadToEnd());
-    }
-    return output.Trim();
+    return ProcessUtils.ExecuteCommand(ffmpegLocation, cmdArgs, dataReceived);
 }
 
-string ExecuteFfmpeg(string[] cmdArgs)
+string ExecuteFfprobe(string[] cmdArgs, DataReceivedEventHandler? dataReceived = null)
 {
-    return ExecuteCommand(ffmpegLocation, cmdArgs);
-}
-
-string ExecuteFfprobe(string[] cmdArgs)
-{
-    return ExecuteCommand(ffprobeLocation, cmdArgs);
+    return ProcessUtils.ExecuteCommand(ffprobeLocation, cmdArgs, dataReceived);
 }
 
 string? LocateExecutable(string filename)
