@@ -82,12 +82,11 @@ AnsiConsole.Live(table).Start(consoleCtx =>
             table.UpdateCell(workerPool.IndexOf(file), 1, "Stream Analysis");
             table.UpdateCell(workerPool.IndexOf(file), 2, audioStream.Index.ToString());
             consoleCtx.Refresh();
-            // var initialLevel = GetDecibelPeakOfStream(file, audioStream.Index, audioStream.Duration, progress => 
-            // {
-            //     table.UpdateCell(workerPool.IndexOf(file), 3, (int)(progress * 100) + "%");
-            //     consoleCtx.Refresh();
-            // });
-            var initialLevel = -2;
+            var initialLevel = GetDecibelPeakOfStream(file, audioStream.Index, audioStream.Duration, progress => 
+            {
+                table.UpdateCell(workerPool.IndexOf(file), 3, (int)(progress * 100) + "%");
+                consoleCtx.Refresh();
+            });
             if (initialLevel < interpretedParams.Value.decibelTarget)
             {
                 table.UpdateCell(workerPool.IndexOf(file), 1, "Stream Correction");
