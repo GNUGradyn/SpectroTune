@@ -1,4 +1,6 @@
-﻿namespace SpectroTune;
+﻿using System.Text;
+
+namespace SpectroTune;
 
 using System;
 using System.Diagnostics;
@@ -6,19 +8,19 @@ using System.Runtime.InteropServices;
 
 public class ProcessUtils
 {
-    public static string ExecuteCommand(string path, string[] cmdArgs, DataReceivedEventHandler? dataReceived = null)
+    public static string ExecuteCommand(string path, string[] cmdArgs, DataReceivedEventHandler? dataReceived = null, DataReceivedEventHandler? errorReceived = null)
     {
         if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
         {
-            return ExecuteCommandWindows(path, cmdArgs, dataReceived);
+            return ExecuteCommandWindows(path, cmdArgs, dataReceived, errorReceived);
         }
         else
         {
-            return ExecuteCommandUnix(path, cmdArgs, dataReceived);
+            return ExecuteCommandUnix(path, cmdArgs, dataReceived, errorReceived);
         }
     }
 
-    private static string ExecuteCommandWindows(string path, string[] cmdArgs, DataReceivedEventHandler? dataReceived = null)
+    private static string ExecuteCommandWindows(string path, string[] cmdArgs, DataReceivedEventHandler? dataReceived = null, DataReceivedEventHandler? errorReceived = null)
     {
         IntPtr job = CreateJobObject(IntPtr.Zero, null);
         if (job == IntPtr.Zero)
@@ -46,28 +48,39 @@ public class ProcessUtils
         p.StartInfo.FileName = path;
         p.StartInfo.Arguments = string.Join(' ', cmdArgs);
         p.StartInfo.CreateNoWindow = true;
+        p.EnableRaisingEvents = true;
+
+        var output = new StringBuilder();
+
+        if (dataReceived != null) p.OutputDataReceived += dataReceived;
+        if (errorReceived != null) p.ErrorDataReceived += errorReceived;
+        p.OutputDataReceived += (sender, eventArgs) =>
+        {
+            if (eventArgs.Data != null) output.AppendLine(eventArgs.Data);
+        };
 
         p.Start();
-
+    
         if (!AssignProcessToJobObject(job, p.Handle))
         {
             Marshal.FreeHGlobal(extendedInfoPtr);
             throw new Exception("Could not assign process to job object");
         }
 
-        if (dataReceived != null) p.OutputDataReceived += dataReceived;
-        string output = p.StandardOutput.ReadToEnd();
+        p.BeginOutputReadLine();
         p.WaitForExit();
+
         if (p.ExitCode != 0)
         {
             throw new Exception(p.StandardError.ReadToEnd());
         }
 
         Marshal.FreeHGlobal(extendedInfoPtr);
-        return output.Trim();
+        return output.ToString().Trim();
     }
 
-    private static string ExecuteCommandUnix(string path, string[] cmdArgs, DataReceivedEventHandler? dataReceived = null)
+
+    private static string ExecuteCommandUnix(string path, string[] cmdArgs, DataReceivedEventHandler? dataReceived = null, DataReceivedEventHandler? errorReceived = null)
     {
         ProcessStartInfo psi = new ProcessStartInfo
         {
@@ -80,20 +93,22 @@ public class ProcessUtils
         };
 
         Process p = new Process { StartInfo = psi };
-
+        p.EnableRaisingEvents = true;
+        
         p.Start();
 
         // Set the process group ID to the process ID
         // This ensures all child processes are in the same group
         Setpgid(p.Id, p.Id);
 
-        if (dataReceived != null)
+        var output = new StringBuilder();
+        if (dataReceived != null) p.OutputDataReceived += dataReceived;
+        if (errorReceived != null) p.ErrorDataReceived += errorReceived;
+        p.OutputDataReceived += (sender, eventArgs) =>
         {
-            p.OutputDataReceived += dataReceived;
-            p.BeginOutputReadLine();
-        }
+            if (eventArgs.Data != null) output.AppendLine(eventArgs.Data);
+        };
         
-        string output = p.StandardOutput.ReadToEnd();
         p.WaitForExit();
 
         if (p.ExitCode != 0)
@@ -101,7 +116,7 @@ public class ProcessUtils
             throw new Exception(p.StandardError.ReadToEnd());
         }
 
-        return output.Trim();
+        return output.ToString().Trim();
     }
 
     // P/Invoke declarations for Windows

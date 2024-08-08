@@ -97,9 +97,9 @@ double GetDecibelPeakOfStream(string file, int streamIndex, Action<double> progr
 {
     var result = ExecuteFfmpeg([
         "-i", $"\"{file}\"", $"-filter:a:{streamIndex.ToString()}", "volumedetect", "-f", "null", "/dev/null", "-threads", "1"
-    ], (sender, eventArgs) =>
+    ], null, (sender, eventArgs) =>
     {
-        
+        {}
     });
     return 0;
 }
@@ -115,23 +115,23 @@ AudioStream[] GetAudioStreams(string filePath)
         {
             if (x.Split(",").Length == 2)
             {
-                return new AudioStream(int.Parse(x.Split(',')[0]), double.Parse(x.Split(',')[1]), "unk");
+                return new AudioStream(int.Parse(x.Split(',')[0]) - 1, double.Parse(x.Split(',')[1]), "unk");
 
             }
-            return new AudioStream(int.Parse(x.Split(',')[0]), double.Parse(x.Split(',')[1]), x.Split(',')[2]);
+            return new AudioStream(int.Parse(x.Split(',')[0]) - 1, double.Parse(x.Split(',')[1]), x.Split(',')[2]);
         })
         .ToArray();
 }
 
 
-string ExecuteFfmpeg(string[] cmdArgs, DataReceivedEventHandler? dataReceived = null)
+string ExecuteFfmpeg(string[] cmdArgs, DataReceivedEventHandler? dataReceived = null, DataReceivedEventHandler? errorReceived = null)
 {
-    return ProcessUtils.ExecuteCommand(ffmpegLocation, cmdArgs, dataReceived);
+    return ProcessUtils.ExecuteCommand(ffmpegLocation, cmdArgs, dataReceived, errorReceived);
 }
 
-string ExecuteFfprobe(string[] cmdArgs, DataReceivedEventHandler? dataReceived = null)
+string ExecuteFfprobe(string[] cmdArgs, DataReceivedEventHandler? dataReceived = null, DataReceivedEventHandler? errorReceived = null)
 {
-    return ProcessUtils.ExecuteCommand(ffprobeLocation, cmdArgs, dataReceived);
+    return ProcessUtils.ExecuteCommand(ffprobeLocation, cmdArgs, dataReceived, errorReceived);
 }
 
 string? LocateExecutable(string filename)
