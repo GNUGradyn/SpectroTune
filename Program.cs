@@ -161,7 +161,7 @@ void CorrectAudioStream(string filePath, int streamIndex, double correctionFacto
 {
     var tmpPath = Path.GetTempFileName() + Path.GetExtension(filePath);
     ExecuteFfmpeg([
-        "-i", $"\"{filePath}\"", "-map", $"0:a:{streamIndex}", "-filter:a", $"volume={correctionFactor}", $"\"{tmpPath}\""
+        "-i", $"\"{filePath}\"", "-map", $"0:a:{streamIndex}", "-filter:a", $"volume={correctionFactor}", "-threads", (remaining >= maxDegreeParallelism ? 1 : maxDegreeParallelism - files.Count).ToString(), $"\"{tmpPath}\""
     ], null, (sender, eventArgs) =>
     {
         if (eventArgs.Data == null) return;
