@@ -109,7 +109,7 @@ public class ProcessUtils
         {
             if (eventArgs.Data != null) output.AppendLine(eventArgs.Data);
         };
-        p.OutputDataReceived += (sender, eventArgs) =>
+        p.ErrorDataReceived += (sender, eventArgs) =>
         {
             if (eventArgs.Data != null) error.AppendLine(eventArgs.Data);
         };
