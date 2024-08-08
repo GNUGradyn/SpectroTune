@@ -102,18 +102,23 @@ public class ProcessUtils
         Setpgid(p.Id, p.Id);
 
         var output = new StringBuilder();
+        var error = new StringBuilder();
         if (dataReceived != null) p.OutputDataReceived += dataReceived;
         if (errorReceived != null) p.ErrorDataReceived += errorReceived;
         p.OutputDataReceived += (sender, eventArgs) =>
         {
             if (eventArgs.Data != null) output.AppendLine(eventArgs.Data);
         };
+        p.OutputDataReceived += (sender, eventArgs) =>
+        {
+            if (eventArgs.Data != null) error.AppendLine(eventArgs.Data);
+        };
         
         p.WaitForExit();
 
         if (p.ExitCode != 0)
         {
-            throw new Exception(p.StandardError.ReadToEnd());
+            throw new Exception(error.ToString());
         }
 
         return output.ToString().Trim();
