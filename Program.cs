@@ -48,6 +48,8 @@ var maxDegreeParallelism = interpretedParams.Value.Threads == 0 ? Environment.Pr
 
 Console.WriteLine($"Processing {files.Count} files on {maxDegreeParallelism} threads");
 
+var remaining = files.Count;
+
 var table = new Table();
 table.AddColumn("File");
 table.AddColumn("Status");
@@ -80,7 +82,7 @@ AnsiConsole.Live(table).Start(consoleCtx =>
             table.UpdateCell(workerPool.IndexOf(file), 1, "Stream Analysis");
             table.UpdateCell(workerPool.IndexOf(file), 2, audioStream.Index.ToString());
             consoleCtx.Refresh();
-            GetDecibelPeakOfStream(file, audioStream.Index, audioStream.Duration, progress => 
+            var initialLevel = GetDecibelPeakOfStream(file, audioStream.Index, audioStream.Duration, progress => 
             {
                 table.UpdateCell(workerPool.IndexOf(file), 3, (int)(progress * 100) + "%");
                 consoleCtx.Refresh();
@@ -93,15 +95,18 @@ AnsiConsole.Live(table).Start(consoleCtx =>
             workerPool.RemoveAt(index);
         }
         consoleCtx.Refresh();
+        remaining--;
     });
 });
 
-double GetDecibelPeakOfStream(string file, int streamIndex, TimeSpan duration, Action<double> progress = null)
-{
+double GetDecibelPeakOfStream(string file, int streamIndex, TimeSpan duration, Action<double>? progress = null)
+{ 
     var result = ExecuteFfmpeg([
-        "-i", $"\"{file}\"", $"-filter:a:{streamIndex.ToString()}", "volumedetect", "-f", "null", "/dev/null", "-threads", (files.Count >= maxDegreeParallelism ? 1 : maxDegreeParallelism - files.Count).ToString()
+        "-i", $"\"{file}\"", $"-filter:a:{streamIndex.ToString()}", "volumedetect", "-f", "null", "/dev/null", "-threads", (remaining >= maxDegreeParallelism ? 1 : maxDegreeParallelism - files.Count).ToString()
     ], null, (sender, eventArgs) =>
     {
+        if (progress == null) return;
+        if (eventArgs.Data == null) return;
         if (eventArgs.Data.Contains("time="))
         {
             progress(TimeSpan.Parse(Regex.Match(eventArgs.Data, @"time=(.*?)(?=\.)").Groups[1].Value).TotalSeconds /
