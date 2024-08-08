@@ -104,6 +104,7 @@ AnsiConsole.Live(table).Start(consoleCtx =>
                     {
                         table.UpdateCell(workerPool.IndexOf(file), 3, (int)(progress * 100) + "%");
                     }
+                    consoleCtx.Refresh();
                 });
             }
         }
@@ -156,12 +157,16 @@ AudioStream[] GetAudioStreams(string filePath)
 
 void CorrectAudioStream(string filePath, int streamIndex, double correctionFactor, TimeSpan duration, Action<double>? progress = null)
 {
-    var tmpPath = Path.GetTempFileName();
+    var tmpPath = Path.GetTempFileName() + Path.GetExtension(filePath);
     ExecuteFfmpeg([
-        "-i", filePath, "-map", $"0:a:{streamIndex}", "-filter:a", $"volume={correctionFactor}", "-c:a", tmpPath
+        "-i", $"\"{filePath}\"", "-map", $"0:a:{streamIndex}", "-filter:a", $"volume={correctionFactor}", $"\"{tmpPath}\""
     ], null, (sender, eventArgs) =>
     {
-        {}
+        if (eventArgs.Data == null) return;
+        if (progress == null) return;
+        if (!eventArgs.Data.Contains("time=")) return;
+        progress(TimeSpan.Parse(Regex.Match(eventArgs.Data, @"time=(.*?)(?=\.)").Groups[1].Value).TotalSeconds /
+                 duration.TotalSeconds);
     });
     progress?.Invoke(-1);
     File.Delete(filePath);
