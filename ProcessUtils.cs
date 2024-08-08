@@ -51,6 +51,7 @@ public class ProcessUtils
         p.EnableRaisingEvents = true;
 
         var output = new StringBuilder();
+        var error = new StringBuilder();
 
         if (dataReceived != null) p.OutputDataReceived += dataReceived;
         if (errorReceived != null) p.ErrorDataReceived += errorReceived;
@@ -58,7 +59,10 @@ public class ProcessUtils
         {
             if (eventArgs.Data != null) output.AppendLine(eventArgs.Data);
         };
-
+        p.ErrorDataReceived += (sender, eventArgs) =>
+        {
+            if (eventArgs.Data != null) error.AppendLine(eventArgs.Data);
+        };
         p.Start();
     
         if (!AssignProcessToJobObject(job, p.Handle))
@@ -72,7 +76,7 @@ public class ProcessUtils
 
         if (p.ExitCode != 0)
         {
-            throw new Exception(p.StandardError.ReadToEnd());
+            throw new Exception(error.ToString());
         }
 
         Marshal.FreeHGlobal(extendedInfoPtr);
