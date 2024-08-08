@@ -5,6 +5,7 @@ using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.ComponentModel;
 using System.Diagnostics;
+using System.Text.RegularExpressions;
 using CommandLine;
 using Spectre.Console;
 using Spectre.Console.Rendering;
@@ -78,7 +79,7 @@ AnsiConsole.Live(table).Start(consoleCtx =>
             table.UpdateCell(workerPool.IndexOf(file), 1, "Stream Analysis");
             table.UpdateCell(workerPool.IndexOf(file), 2, audioStream.Index.ToString());
             consoleCtx.Refresh();
-            GetDecibelPeakOfStream(file, audioStream.Index, progress => 
+            GetDecibelPeakOfStream(file, audioStream.Index, audioStream.Duration, progress => 
             {
                 
             });
@@ -93,13 +94,17 @@ AnsiConsole.Live(table).Start(consoleCtx =>
     });
 });
 
-double GetDecibelPeakOfStream(string file, int streamIndex, Action<double> progress = null)
+double GetDecibelPeakOfStream(string file, int streamIndex, TimeSpan duration, Action<double> progress = null)
 {
     var result = ExecuteFfmpeg([
         "-i", $"\"{file}\"", $"-filter:a:{streamIndex.ToString()}", "volumedetect", "-f", "null", "/dev/null", "-threads", (files.Count >= maxDegreeParallelism ? 1 : maxDegreeParallelism - files.Count).ToString()
     ], null, (sender, eventArgs) =>
     {
-        {}
+        if (eventArgs.Data.Contains("time="))
+        {
+            progress(TimeSpan.Parse(Regex.Match(eventArgs.Data, @"time=(.*?)(?=\.)").Groups[1].Value).TotalSeconds /
+                     duration.TotalSeconds);
+        }
     });
     return 0;
 }
@@ -107,18 +112,18 @@ double GetDecibelPeakOfStream(string file, int streamIndex, Action<double> progr
 AudioStream[] GetAudioStreams(string filePath)
 {
     var rawResult = ExecuteFfprobe(
-        ["-v", "error", "-select_streams", "a", "-show_entries", "stream=index,channels:stream_tags=language", "-of", "csv=p=0", $"\"{filePath}\""]);
+        ["-v", "error", "-select_streams", "a", "-show_entries", "stream=index,channels:stream_tags=language,duration", "-of", "csv=p=0", $"\"{filePath}\""]);
     return rawResult
         .Split(["\r\n", "\n", "\r"], StringSplitOptions.None)
         .Where(x => !string.IsNullOrWhiteSpace(x))
         .Select(x =>
         {
-            if (x.Split(",").Length == 2)
+            if (x.Split(",").Length == 3)
             {
-                return new AudioStream(int.Parse(x.Split(',')[0]) - 1, double.Parse(x.Split(',')[1]), "unk");
+                return new AudioStream(int.Parse(x.Split(',')[0]) - 1, double.Parse(x.Split(',')[1]), "unk", TimeSpan.Parse(x.Split(',')[2].Split(".")[0]));
 
             }
-            return new AudioStream(int.Parse(x.Split(',')[0]) - 1, double.Parse(x.Split(',')[1]), x.Split(',')[2]);
+            return new AudioStream(int.Parse(x.Split(',')[0]) - 1, double.Parse(x.Split(',')[1]), x.Split(',')[2], TimeSpan.Parse(x.Split(',')[3].Split(".")[0]));
         })
         .ToArray();
 }
