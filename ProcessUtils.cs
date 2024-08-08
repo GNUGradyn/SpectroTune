@@ -72,6 +72,7 @@ public class ProcessUtils
         }
 
         p.BeginOutputReadLine();
+        p.BeginErrorReadLine();
         p.WaitForExit();
 
         if (p.ExitCode != 0)
