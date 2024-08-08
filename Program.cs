@@ -82,11 +82,30 @@ AnsiConsole.Live(table).Start(consoleCtx =>
             table.UpdateCell(workerPool.IndexOf(file), 1, "Stream Analysis");
             table.UpdateCell(workerPool.IndexOf(file), 2, audioStream.Index.ToString());
             consoleCtx.Refresh();
-            var initialLevel = GetDecibelPeakOfStream(file, audioStream.Index, audioStream.Duration, progress => 
+            // var initialLevel = GetDecibelPeakOfStream(file, audioStream.Index, audioStream.Duration, progress => 
+            // {
+            //     table.UpdateCell(workerPool.IndexOf(file), 3, (int)(progress * 100) + "%");
+            //     consoleCtx.Refresh();
+            // });
+            var initialLevel = -2;
+            if (initialLevel < interpretedParams.Value.decibelTarget)
             {
-                table.UpdateCell(workerPool.IndexOf(file), 3, (int)(progress * 100) + "%");
-                consoleCtx.Refresh();
-            });
+                table.UpdateCell(workerPool.IndexOf(file), 1, "Stream Correction");
+                table.UpdateCell(workerPool.IndexOf(file), 3, "0%");
+                var correctionFactor = interpretedParams.Value.decibelTarget - initialLevel;
+                CorrectAudioStream(file, audioStream.Index, correctionFactor, audioStream.Duration, progress =>
+                {
+                    if (progress == -1)
+                    {
+                        table.UpdateCell(workerPool.IndexOf(file), 1, "Copying Result");
+                        table.UpdateCell(workerPool.IndexOf(file), 3, "N/A");
+                    }
+                    else
+                    {
+                        table.UpdateCell(workerPool.IndexOf(file), 3, (int)(progress * 100) + "%");
+                    }
+                });
+            }
         }
         lock (workerListLock)
         {
@@ -113,14 +132,14 @@ double GetDecibelPeakOfStream(string file, int streamIndex, TimeSpan duration, A
                      duration.TotalSeconds);
         }
     });
-    return 0;
+    return double.Parse(Regex.Match(result.Error, @"max_volume:\s*(-?\d+(\.\d+)?)").Groups[1].Value);
 }
 
 AudioStream[] GetAudioStreams(string filePath)
 {
     var rawResult = ExecuteFfprobe(
         ["-v", "error", "-select_streams", "a", "-show_entries", "stream=index,channels:stream_tags=language,duration", "-of", "csv=p=0", $"\"{filePath}\""]);
-    return rawResult
+    return rawResult.Output
         .Split(["\r\n", "\n", "\r"], StringSplitOptions.None)
         .Where(x => !string.IsNullOrWhiteSpace(x))
         .Select(x =>
@@ -135,13 +154,26 @@ AudioStream[] GetAudioStreams(string filePath)
         .ToArray();
 }
 
+void CorrectAudioStream(string filePath, int streamIndex, double correctionFactor, TimeSpan duration, Action<double>? progress = null)
+{
+    var tmpPath = Path.GetTempFileName();
+    ExecuteFfmpeg([
+        "-i", filePath, "-map", $"0:a:{streamIndex}", "-filter:a", $"volume={correctionFactor}", "-c:a", tmpPath
+    ], null, (sender, eventArgs) =>
+    {
+        {}
+    });
+    progress?.Invoke(-1);
+    File.Delete(filePath);
+    File.Copy(tmpPath, filePath);
+}
 
-string ExecuteFfmpeg(string[] cmdArgs, DataReceivedEventHandler? dataReceived = null, DataReceivedEventHandler? errorReceived = null)
+ConsoleOutput ExecuteFfmpeg(string[] cmdArgs, DataReceivedEventHandler? dataReceived = null, DataReceivedEventHandler? errorReceived = null)
 {
     return ProcessUtils.ExecuteCommand(ffmpegLocation, cmdArgs, dataReceived, errorReceived);
 }
 
-string ExecuteFfprobe(string[] cmdArgs, DataReceivedEventHandler? dataReceived = null, DataReceivedEventHandler? errorReceived = null)
+ConsoleOutput ExecuteFfprobe(string[] cmdArgs, DataReceivedEventHandler? dataReceived = null, DataReceivedEventHandler? errorReceived = null)
 {
     return ProcessUtils.ExecuteCommand(ffprobeLocation, cmdArgs, dataReceived, errorReceived);
 }

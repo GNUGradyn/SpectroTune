@@ -20,7 +20,7 @@ class Options
     public int Threads { get; set; }
     
     [Option("db", HelpText = "Sets the target level in Decibels. Increase to increase volume, decrease to decrease clipping. This will default to -1 which is a good target in most use cases, so you probably won't need to mess with this", Default = -1)]
-    public float decibelTarget { get; set; }
+    public double decibelTarget { get; set; }
     
     [Option("--stereo", HelpText = "Adds a volume-corrected downmixed stereo channel to surround-only files. This is disabled by default as you would not intuitively expect the script to do this, but enabling it is reccomended", Default = false)]
     public bool stereo { get; set; }

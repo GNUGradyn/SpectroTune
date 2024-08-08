@@ -8,7 +8,7 @@ using System.Runtime.InteropServices;
 
 public class ProcessUtils
 {
-    public static string ExecuteCommand(string path, string[] cmdArgs, DataReceivedEventHandler? dataReceived = null, DataReceivedEventHandler? errorReceived = null)
+    public static ConsoleOutput ExecuteCommand(string path, string[] cmdArgs, DataReceivedEventHandler? dataReceived = null, DataReceivedEventHandler? errorReceived = null)
     {
         if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
         {
@@ -20,7 +20,7 @@ public class ProcessUtils
         }
     }
 
-    private static string ExecuteCommandWindows(string path, string[] cmdArgs, DataReceivedEventHandler? dataReceived = null, DataReceivedEventHandler? errorReceived = null)
+    private static ConsoleOutput ExecuteCommandWindows(string path, string[] cmdArgs, DataReceivedEventHandler? dataReceived = null, DataReceivedEventHandler? errorReceived = null)
     {
         IntPtr job = CreateJobObject(IntPtr.Zero, null);
         if (job == IntPtr.Zero)
@@ -81,11 +81,11 @@ public class ProcessUtils
         }
 
         Marshal.FreeHGlobal(extendedInfoPtr);
-        return output.ToString().Trim();
+        return new ConsoleOutput(output.ToString().Trim(), error.ToString().Trim());
     }
 
 
-    private static string ExecuteCommandUnix(string path, string[] cmdArgs, DataReceivedEventHandler? dataReceived = null, DataReceivedEventHandler? errorReceived = null)
+    private static ConsoleOutput ExecuteCommandUnix(string path, string[] cmdArgs, DataReceivedEventHandler? dataReceived = null, DataReceivedEventHandler? errorReceived = null)
     {
         ProcessStartInfo psi = new ProcessStartInfo
         {
@@ -126,7 +126,7 @@ public class ProcessUtils
             throw new Exception(error.ToString());
         }
 
-        return output.ToString().Trim();
+        return new ConsoleOutput(output.ToString().Trim(), error.ToString().Trim());
     }
 
     // P/Invoke declarations for Windows
