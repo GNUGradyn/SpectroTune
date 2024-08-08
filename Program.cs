@@ -96,7 +96,7 @@ AnsiConsole.Live(table).Start(consoleCtx =>
 double GetDecibelPeakOfStream(string file, int streamIndex, Action<double> progress = null)
 {
     var result = ExecuteFfmpeg([
-        "-i", $"\"{file}\"", $"-filter:a:{streamIndex.ToString()}", "volumedetect", "-f", "null", "/dev/null", "-threads", "1"
+        "-i", $"\"{file}\"", $"-filter:a:{streamIndex.ToString()}", "volumedetect", "-f", "null", "/dev/null", "-threads", (files.Count >= 12 ? 1 : 12 - files.Count).ToString()
     ], null, (sender, eventArgs) =>
     {
         {}
