@@ -55,6 +55,7 @@ table.AddColumn("File");
 table.AddColumn("Status");
 table.AddColumn("Stream Index");
 table.AddColumn("Progress");
+var rows = new List<IRenderable>() { table, new Text($"{files.Count - remaining} completed out of {files.Count} files {(int)(files.Count - remaining) * 100 + "%"}") };
 
 // This is due to a VERY annoying limitation in Spectre.Console that they have yet to fix.
 // We cannot find the index of a TableRow in table.Rows. 
@@ -65,7 +66,8 @@ table.AddColumn("Progress");
 var workerListLock = new object();
 var workerPool = new List<string>();
 
-AnsiConsole.Live(table).Start(consoleCtx =>
+var rowsRenderable = new Rows(rows);
+AnsiConsole.Live(rowsRenderable).Start(consoleCtx =>
 {
     Parallel.ForEach(files, new ParallelOptions() { MaxDegreeOfParallelism = maxDegreeParallelism }, file =>
     {
@@ -113,6 +115,7 @@ AnsiConsole.Live(table).Start(consoleCtx =>
             table.Rows.RemoveAt(index);
             workerPool.RemoveAt(index);
         }
+        rows[2] = new Text($"{files.Count - remaining} completed out of {files.Count} files {(int)(files.Count - remaining) * 100 + "%"}");
         consoleCtx.Refresh();
         remaining--;
     });
