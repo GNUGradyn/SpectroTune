@@ -52,6 +52,7 @@ var table = new Table();
 table.AddColumn("File");
 table.AddColumn("Status");
 table.AddColumn("Stream Index");
+table.AddColumn("Progress");
 
 // This is due to a VERY annoying limitation in Spectre.Console that they have yet to fix.
 // We cannot find the index of a TableRow in table.Rows. 
@@ -66,7 +67,7 @@ AnsiConsole.Live(table).Start(consoleCtx =>
 {
     Parallel.ForEach(files, new ParallelOptions() { MaxDegreeOfParallelism = maxDegreeParallelism }, file =>
     {
-        var row = new TableRow(new Markup[] { new(Markup.Escape(Path.GetFileName(file))), new("Initial File Analysis"), new("N/A") });
+        var row = new TableRow(new Markup[] { new(Markup.Escape(Path.GetFileName(file))), new("Initial File Analysis"), new("N/A"), new("0%") });
         lock (workerListLock)
         {
             table.Rows.Add(row);
@@ -81,7 +82,8 @@ AnsiConsole.Live(table).Start(consoleCtx =>
             consoleCtx.Refresh();
             GetDecibelPeakOfStream(file, audioStream.Index, audioStream.Duration, progress => 
             {
-                
+                table.UpdateCell(workerPool.IndexOf(file), 3, (int)(progress * 100) + "%");
+                consoleCtx.Refresh();
             });
         }
         lock (workerListLock)
