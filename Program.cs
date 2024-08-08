@@ -7,6 +7,7 @@ using System.ComponentModel;
 using System.Diagnostics;
 using System.Text.RegularExpressions;
 using CommandLine;
+using Newtonsoft.Json;
 using Spectre.Console;
 using Spectre.Console.Rendering;
 using SpectroTune;
@@ -141,20 +142,16 @@ double GetDecibelPeakOfStream(string file, int streamIndex, TimeSpan duration, A
 AudioStream[] GetAudioStreams(string filePath)
 {
     var rawResult = ExecuteFfprobe(
-        ["-v", "error", "-select_streams", "a", "-show_entries", "stream=index,channels:stream_tags=language,duration", "-of", "csv=p=0", $"\"{filePath}\""]);
-    return rawResult.Output
-        .Split(["\r\n", "\n", "\r"], StringSplitOptions.None)
-        .Where(x => !string.IsNullOrWhiteSpace(x))
-        .Select(x =>
-        {
-            if (x.Split(",").Length == 3)
-            {
-                return new AudioStream(int.Parse(x.Split(',')[0]) - 1, double.Parse(x.Split(',')[1]), "unk", TimeSpan.Parse(x.Split(',')[2].Split(".")[0]));
-
-            }
-            return new AudioStream(int.Parse(x.Split(',')[0]) - 1, double.Parse(x.Split(',')[1]), x.Split(',')[2], TimeSpan.Parse(x.Split(',')[3].Split(".")[0]));
-        })
-        .ToArray();
+    [
+        "-v", "error", "-select_streams", "a", "-show_entries",
+        "stream=index,channels:stream_tags=language,duration:format=duration", "-of", "json", $"\"{filePath}\""
+    ]);
+    var parsedResult = JsonConvert.DeserializeObject<FFprobeResult>(rawResult.Output);
+    return parsedResult.Streams.Select(stream =>
+    {
+        return new AudioStream(stream.Index, stream.Channels, stream.Tags["language"] ?? "unk",
+            TimeSpan.FromSeconds(parsedResult.Format.Duration));
+    }).ToArray();
 }
 
 void CorrectAudioStream(string filePath, int streamIndex, double correctionFactor, TimeSpan duration, Action<double>? progress = null)
