@@ -6,11 +6,13 @@ using System.Collections.Specialized;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Text.RegularExpressions;
+using System.Timers;
 using CommandLine;
 using Newtonsoft.Json;
 using Spectre.Console;
 using Spectre.Console.Rendering;
 using SpectroTune;
+using Timer = System.Threading.Timer;
 
 var interpretedParams = Parser.Default.ParseArguments<Options>(args);
 
@@ -56,7 +58,8 @@ table.AddColumn("File");
 table.AddColumn("Status");
 table.AddColumn("Stream Index");
 table.AddColumn("Progress");
-var rows = new List<IRenderable>() { table, new Text($"{files.Count - remaining} completed out of {files.Count} files {(int)(files.Count - remaining) * 100 + "%"}") };
+var rows = new List<IRenderable>() { table, new Text(
+    $"{files.Count - remaining} completed out of {files.Count} files {(int)(files.Count - remaining) * 100 + "%"}") };
 
 // This is due to a VERY annoying limitation in Spectre.Console that they have yet to fix.
 // We cannot find the index of a TableRow in table.Rows. 
@@ -66,10 +69,14 @@ var rows = new List<IRenderable>() { table, new Text($"{files.Count - remaining}
 // We lock both collections with 1 lock to avoid race conditions
 var workerListLock = new object();
 var workerPool = new List<string>();
-
+var stopwatch = new Stopwatch();
+stopwatch.Start();
 var rowsRenderable = new Rows(rows);
 AnsiConsole.Live(rowsRenderable).Start(consoleCtx =>
 {
+    System.Timers.Timer myTimer = new System.Timers.Timer(1000);
+    myTimer.Elapsed += new ElapsedEventHandler((_, _) => UpdateOverallProgress(consoleCtx));
+    myTimer.Start();
     using (SemaphoreSlim semaphore = new SemaphoreSlim(maxDegreeParallelism))
     {
         var tasks = new List<Task>();
@@ -87,8 +94,9 @@ AnsiConsole.Live(rowsRenderable).Start(consoleCtx =>
                     semaphore.Release();
                 }
             });
-            Task.WaitAll(tasks.ToArray());
+            tasks.Add(task);
         }
+        Task.WaitAll(tasks.ToArray());
     }
 });
 
@@ -138,9 +146,15 @@ void ProcessFile(string file, LiveDisplayContext consoleCtx)
             table.Rows.RemoveAt(index);
             workerPool.RemoveAt(index);
         }
-        rows[2] = new Text($"{files.Count - remaining} completed out of {files.Count} files {(int)(files.Count - remaining) * 100 + "%"}");
+        UpdateOverallProgress(consoleCtx);
         consoleCtx.Refresh();
         remaining--;
+}
+
+void UpdateOverallProgress(LiveDisplayContext consoleCtx)
+{
+    rows[1] = new Text($"{files.Count - remaining} completed out of {files.Count} files {(int)(files.Count - remaining) * 100 + "%"} (Elapsed time {stopwatch.Elapsed.ToString().Split(".")[0]})");
+    consoleCtx.Refresh();
 }
 
 double GetDecibelPeakOfStream(string file, int streamIndex, TimeSpan duration, Action<double>? progress = null)
