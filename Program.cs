@@ -70,9 +70,31 @@ var workerPool = new List<string>();
 var rowsRenderable = new Rows(rows);
 AnsiConsole.Live(rowsRenderable).Start(consoleCtx =>
 {
-    Parallel.ForEach(files, new ParallelOptions() { MaxDegreeOfParallelism = maxDegreeParallelism }, file =>
+    using (SemaphoreSlim semaphore = new SemaphoreSlim(maxDegreeParallelism))
     {
-        var row = new TableRow(new Markup[] { new(Markup.Escape(Path.GetFileName(file))), new("Initial File Analysis"), new("N/A"), new("0%") });
+        var tasks = new List<Task>();
+        foreach (var file in files)
+        {
+            semaphore.Wait();
+            Task task = Task.Run(() =>
+            {
+                try
+                {
+                    ProcessFile(file, consoleCtx);
+                }
+                finally
+                {
+                    semaphore.Release();
+                }
+            });
+            Task.WaitAll(tasks.ToArray());
+        }
+    }
+});
+
+void ProcessFile(string file, LiveDisplayContext consoleCtx)
+{
+    var row = new TableRow(new Markup[] { new(Markup.Escape(Path.GetFileName(file))), new("Initial File Analysis"), new("N/A"), new("0%") });
         lock (workerListLock)
         {
             table.Rows.Add(row);
@@ -119,8 +141,7 @@ AnsiConsole.Live(rowsRenderable).Start(consoleCtx =>
         rows[2] = new Text($"{files.Count - remaining} completed out of {files.Count} files {(int)(files.Count - remaining) * 100 + "%"}");
         consoleCtx.Refresh();
         remaining--;
-    });
-});
+}
 
 double GetDecibelPeakOfStream(string file, int streamIndex, TimeSpan duration, Action<double>? progress = null)
 { 
